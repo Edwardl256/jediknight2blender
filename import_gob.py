@@ -8,6 +8,7 @@ class Gob:
         '''
         Initialize GOB / GOO container file
         '''
+        print(gob_file)
         f = open(gob_file, 'rb')  # open file for reading
         self.data = f.read()
         f.close()
@@ -19,7 +20,7 @@ class Gob:
         '''sets toc dict. key = filename, value = tuple
         (file offset from gob start, file length)'''
         first_size_offset, first_offset, file_count, offset, length = unpack(
-            'LLLLL',
+            'IIIII',
             self.data[4:24]
             )
 
@@ -29,7 +30,7 @@ class Gob:
             byte_offset = 24+i*136
             file_path = unpack('<128s', self.data[byte_offset:byte_offset+128])
             file_offset, length = unpack(
-                'LL',
+                'II',
                 self.data[byte_offset-8:byte_offset]
                 )
             file_path_decode = file_path[0].decode('ISO-8859-1')  # bin to str
@@ -42,7 +43,7 @@ class Gob:
 
     def set_paths_toc(self):
         first_size_offset, first_offset, file_count, offset, length = unpack(
-            'LLLLL',
+            'IIIII',
             self.data[4:24]
             )
 
@@ -52,7 +53,7 @@ class Gob:
             byte_offset = 24+i*136
             file_path = unpack('<128s', self.data[byte_offset:byte_offset+128])
             file_offset, length = unpack(
-                'LL',
+                'II',
                 self.data[byte_offset-8:byte_offset]
                 )
             file_path_decode = file_path[0].decode('ISO-8859-1')  # bin to str

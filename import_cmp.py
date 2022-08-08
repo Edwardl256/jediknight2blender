@@ -11,7 +11,7 @@ class Cmp:
 
     def import_Cmp(self):
 
-        header = unpack("ccccLL", self.file[0:12])
+        header = unpack("ccccII", self.file[0:12])
 
         Transparency = header[5]
 

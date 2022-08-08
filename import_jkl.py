@@ -1,16 +1,17 @@
 import re
 import bpy
-import pathlib
-from os.path import basename, dirname
+import mathutils
+import os
+from struct import unpack
 from .import_3do import Thing
 from .import_mat import Mat
 from .import_gob import Gob
-from . import jk_parse
-
+from . import jk_flags
+import pathlib
 
 class Level:
 
-    def __init__(self, path, importThings, importMats, importIntensities, importEmission, importAlpha, scale, select_shader, import_sector_info, source):
+    def __init__(self, path, importThings, importMats, importIntensities, importEmission, importAlpha, scale, select_shader, import_sector_info, restwo_file, jkmres_file):
         '''initialize jkl with diverse import flags'''
         self.lines = None
         self.importThings = importThings
@@ -18,12 +19,13 @@ class Level:
         self.importIntensities = importIntensities
         self.importEmission = importEmission
         self.importAlpha = importAlpha
-        self.scale = scale * 10.0                        # blender units factor
+        self.scale = scale
         self.select_shader = select_shader
         self.import_sector_info = import_sector_info
         self.path = path
         self.name = ""
-        self.source = source
+        self.restwo_file = restwo_file
+        self.jkmres_file = jkmres_file
 
 
     def open_jkl(self, jkl_file):
@@ -40,6 +42,10 @@ class Level:
 
     def import_Level(self):
         '''reads jkl, constructs 3d level mesh, fills with 3do objects and applies materials'''
+        print("reading jkl data file...")
+        # f = open(self.path, 'r')
+        # lines=f.readlines()  # store the entire file in a variable
+        # f.close()
 
         lines = self.lines
 
@@ -49,70 +55,60 @@ class Level:
         path = pathlib.Path(self.path)
         gob_path = pathlib.Path('')
 
-        this_addon = basename(dirname(__file__))
-        prefs = bpy.context.preferences.addons[this_addon].preferences
-        prefs_dir_jkdf = pathlib.Path(prefs.jkdf_path).parts[-1]
-        prefs_dir_mots = pathlib.Path(prefs.jkdf_path).parts[-1]
-
-        # check if gob is in one of the following parent directories
-        # to determine the base game
-
         parent = 0
         jk_paths = [
-            "Star Wars Jedi Knight - Dark Forces 2",                # GOG Dir
-            "Star Wars Jedi Knight",                                # steam Dir
-            prefs_dir_jkdf                                          # custom Dir in Prefs
+            "Star Wars Jedi Knight - Dark Forces 2",                # GOG Path
+            "Star Wars Jedi Knight"                                 # steam Path
             ]
         mots_paths = [
-            "Star Wars Jedi Knight - Mysteries of the Sith",        # GOG Dir
-            "Jedi Knight Mysteries of the Sith",                    # steam Dir
-            prefs_dir_mots                                          # custom Dir in Prefs
+            "Star Wars Jedi Knight - Mysteries of the Sith",        # GOG Path
+            "Jedi Knight Mysteries of the Sith"                     # steam Path
             ]
 
         motsflag = False
-        for folder in path.parts[::-1]:
-            if folder in jk_paths:
-                gob_path = path.parents[parent-1].joinpath('Resource')
-                motsflag = False
-                break
-            elif folder in mots_paths:
-                gob_path = path.parents[parent-1].joinpath('Resource')
-                motsflag = True
-                break
-            else:
-                # if base game not found take manual override parameter
-                if self.source == "DFJK":
-                    gob_path = pathlib.Path(prefs.jkdf_path).joinpath('Resource')
-                    motsflag = False
-                elif self.source == "MOTS":
-                    gob_path = pathlib.Path(prefs.mots_path).joinpath('Resource')
-                    motsflag = True
-            parent += 1
 
-        # # variable_section = [line position, variable count]
+        self.scale = self.scale * 10.0  # factor for real world scale in blender
 
-        materials_section = [0, 0]
-        colormaps_section = [0, 0]
-        vertices_section = [0, 0]
-        uvs_section = [0, 0]
-        adjoins_section = [0, 0]
-        surfaces_section = [0, 0]
-        sectors_section = [0, 0]
-        models_section = [0, 0]
-        templates_section = [0, 0]
-        things_section = [0, 0]
+        # get required SECTION positions in jkl ############################
+
+        world_materials_regex = re.compile(r"World materials\s(\d+)")
+        world_colormaps_regex = re.compile(r"World Colormaps\s(\d+)")
+        world_vertices_regex = re.compile(r"World vertices\s(\d+)")
+        world_uvs_regex = re.compile(r"World texture vertices\s(\d+)")
+        world_adjoins_regex = re.compile(r"World adjoins\s(\d+)")
+        world_surfaces_regex = re.compile(r"World surfaces\s(\d+)")
+        world_sectors_regex = re.compile(r"World sectors\s(\d+)")
+        world_models_regex = re.compile(r"World models\s(\d+)")
+        world_templates_regex = re.compile(r"World templates\s(\d+)")
+        world_things_regex = re.compile(r"World things\s(\d+)")
+        world_archlights_regex = re.compile(r"Num ArchObjects\s(\d+)")
+
+
+        # variable_section = [line position, variable count]
+
+        materials_section = [0,0]
+        colormaps_section = [0,0]
+        vertices_section = [0,0]
+        uvs_section = [0,0]
+        adjoins_section = [0,0]
+        surfaces_section = [0,0]
+        sectors_section = [0,0]
+        models_section = [0,0]
+        templates_section = [0,0]
+        things_section = [0,0]
 
         for pos, line in enumerate(lines):
-            match_materials_section = jk_parse.WORLD_MATERIALS_RE.search(line)
-            match_colormaps_section = jk_parse.WORLD_COLORMAPS_RE.search(line)
-            match_vertices_section = jk_parse.WORLD_VERTICES_RE.search(line)
-            match_uvs_section = jk_parse.WORLD_UVS_RE.search(line)
-            match_adjoins_section = jk_parse.WORLD_ADJOINS_RE.search(line)
-            match_surfaces_section = jk_parse.WORLD_SURFACES_RE.search(line)
-            match_sectors_section = jk_parse.WORLD_SECTORS_RE.search(line)
-            match_models_section = jk_parse.WORLD_MODELS_RE.search(line)
-            match_templates_section = jk_parse.WORLD_TEMPLATES_RE.search(line)
-            match_things_section = jk_parse.WORLD_THINGS_RE.search(line)
+            match_materials_section = world_materials_regex.search(line)
+            match_colormaps_section = world_colormaps_regex.search(line)
+            match_vertices_section = world_vertices_regex.search(line)
+            match_uvs_section = world_uvs_regex.search(line)
+            match_adjoins_section = world_adjoins_regex.search(line)
+            match_surfaces_section = world_surfaces_regex.search(line)
+            match_sectors_section = world_sectors_regex.search(line)
+            match_models_section = world_models_regex.search(line)
+            match_templates_section = world_templates_regex.search(line)
+            match_things_section = world_things_regex.search(line)
+            match_archlights_section = world_archlights_regex.search(line)
             if match_materials_section:
                 materials_section = [pos+1 , int(match_materials_section.group(1))]
             elif match_colormaps_section:
@@ -133,6 +129,8 @@ class Level:
                 templates_section = [pos+1 , int(match_templates_section.group(1))]
             elif match_things_section:
                 things_section = [pos+1 , int(match_things_section.group(1))]
+            elif match_archlights_section:
+                motsflag = True
                 break
 
 
@@ -167,23 +165,35 @@ class Level:
 
         # read in sectors #################################################
 
+        sector_regex = re.compile(r"SECTOR\s(\d+)")
+        sector_ambient_regex = re.compile(r"AMBIENT LIGHT\s(-?\d*\.?\d*)")
+        sector_extra_regex = re.compile(r"EXTRA LIGHT\s(-?\d*\.?\d*)")
+        sector_tint_regex = re.compile(r"TINT\s(-?\d*\.?\d*)\s(-?\d*\.?\d*)\s(-?\d*\.?\d*)")
+        sector_boundbox_regex = re.compile(r"BOUNDBOX\s(-?\d*\.?\d*)\s(-?\d*\.?\d*)\s(-?\d*\.?\d*)\s(-?\d*\.?\d*)\s(-?\d*\.?\d*)\s(-?\d*\.?\d*)")
+        sector_center_regex = re.compile(r"CENTER\s(-?\d*\.?\d*)\s(-?\d*\.?\d*)\s(-?\d*\.?\d*)")
+        sector_radius_regex = re.compile(r"RADIUS\s(-?\d*\.?\d*)")
+        sector_surfaces_regex = re.compile(r"SURFACES\s(\d+)\s(\d+)")
+
         sector_pos = []
         sectors_pos_array = []
         # [[NUM, STARTPOS, ENDPOS], [NUM, STARTPOS, ENDPOS]...]
+
+
+
 
         i = 0
         while i < sectors_section[1]:
             sector_line_count = 0
             sectors_dict = {}
             for line in lines[sectors_section[0]:models_section[0]]:
-                match_sector = jk_parse.SECTOR_RE.search(line)
-                match_ambient = jk_parse.SECTOR_AMBIENT_RE.search(line)
-                match_extra = jk_parse.SECTOR_EXTRA_RE.search(line)
-                match_tint = jk_parse.SECTOR_TINT_RE.search(line)
-                match_boundbox = jk_parse.SECTOR_BOUNDBOX_RE.search(line)
-                match_center = jk_parse.SECTOR_CENTER_RE.search(line)
-                match_radius = jk_parse.SECTOR_RADIUS_RE.search(line)
-                match_surfaces = jk_parse.SECTOR_SURFACES_RE.search(line)
+                match_sector = sector_regex.search(line)
+                match_ambient = sector_ambient_regex.search(line)
+                match_extra = sector_extra_regex.search(line)
+                match_tint = sector_tint_regex.search(line)
+                match_boundbox = sector_boundbox_regex.search(line)
+                match_center = sector_center_regex.search(line)
+                match_radius = sector_radius_regex.search(line)
+                match_surfaces = sector_surfaces_regex.search(line)
                 sector_line_count += 1
 
                 if match_sector:
@@ -323,15 +333,17 @@ class Level:
             j = 0
             if motsflag:                   #  color light intensities in Mots (intensity, r, g, b)
                 while j < nvert*4:
-                    surf_intensities.append(float(surfLine[10+nvert+j]) + extralight + sector_extralight)
+                    if type(surfLine[10+nvert+j]) == float:
+                        surf_intensities.append(float(surfLine[10+nvert+j]) + extralight + sector_extralight)
                     j+=1
             else:
                 while j < nvert:
-                    intensity = float(surfLine[10+nvert+j])
-                    r = intensity + extralight + sector_extralight # * sector_tint[0]
-                    g = intensity + extralight + sector_extralight # * sector_tint[1]
-                    b = intensity + extralight + sector_extralight # * sector_tint[2]
-                    surf_intensities.append((r, g, b))
+                    if type(surfLine[10+nvert+j]) == float:
+                        intensity = float(surfLine[10+nvert+j])
+                        r = intensity + extralight + sector_extralight # * sector_tint[0]
+                        g = intensity + extralight + sector_extralight # * sector_tint[1]
+                        b = intensity + extralight + sector_extralight # * sector_tint[2]
+                        surf_intensities.append((r, g, b))
                     j+=1
             surf_intensities_list.append(surf_intensities)
 
@@ -400,21 +412,10 @@ class Level:
 
         if self.importMats or self.importThings:
             if motsflag:
-                try:
-                    gob = Gob(gob_path.joinpath("JKMRES.GOO"))
-                    print("assigning JKMRES.GOO")
-                except FileNotFoundError:
-                    bpy.ops.report.exception(report_message="JKMRES.GOO")
-                    self.importMats = False
-                    self.importThings = False
+                gob = Gob(self.jkmres_file)
             else:
-                try:
-                    gob = Gob(gob_path.joinpath("Res2.gob"))
-                    print("assigning Res2.gob")
-                except FileNotFoundError:
-                    bpy.ops.report.exception(report_message="Res2.gob")
-                    self.importMats = False
-                    self.importThings = False
+                gob = Gob(self.restwo_file)
+            print("assigning GOB")
 
 
         # call material loading class ###########################################
@@ -581,28 +582,28 @@ class Level:
 
                 tiling=mat_tiling_list[material_indices[isrf]]
 
+                if len(surf_intensities_list[isrf]) > 0:
+                    for jsrf, loop in enumerate(uv_indices[isrf]):
+                        u = float(uv_array[uv_indices[isrf][jsrf]][0])/texture_size[0]
+                        v = float(uv_array[uv_indices[isrf][jsrf]][1])/-texture_size[1]
+                        x_tile = tiling[0]                                                  # what's that for? multiplication for size? addition for translation?
+                        y_tile = tiling[1]
+                        uvMap.data[polygon.loop_indices[jsrf]].uv = (u, v)
 
-                for jsrf, loop in enumerate(uv_indices[isrf]):
-                    u = float(uv_array[uv_indices[isrf][jsrf]][0])/texture_size[0]
-                    v = float(uv_array[uv_indices[isrf][jsrf]][1])/-texture_size[1]
-                    x_tile = tiling[0]                                                  # what's that for? multiplication for size? addition for translation?
-                    y_tile = tiling[1]
-                    uvMap.data[polygon.loop_indices[jsrf]].uv = (u, v)
-
-                    if self.importIntensities:
-                        color=()
-                        if motsflag:
-                            r = surf_intensities_list[isrf][jsrf*4+1]
-                            g = surf_intensities_list[isrf][jsrf*4+2]
-                            b = surf_intensities_list[isrf][jsrf*4+3]
-                            color = (r, g, b, 1.0)
-                        else:
-                            surf_light = surf_intensities_list[isrf][jsrf]
-                            r = surf_light[0]
-                            g = surf_light[1]
-                            b = surf_light[2]
-                            color = (r, g, b, 1.0)
-                        vcol.data[polygon.loop_indices[jsrf]].color = color
+                        if self.importIntensities:
+                            color=()
+                            if motsflag:
+                                r = surf_intensities_list[isrf][jsrf*4+1]
+                                g = surf_intensities_list[isrf][jsrf*4+2]
+                                b = surf_intensities_list[isrf][jsrf*4+3]
+                                color = (r, g, b, 1.0)
+                            else:
+                                surf_light = surf_intensities_list[isrf][jsrf]
+                                r = surf_light[0]
+                                g = surf_light[1]
+                                b = surf_light[2]
+                                color = (r, g, b, 1.0)
+                            vcol.data[polygon.loop_indices[jsrf]].color = color
 
 
             #  #Delete Adjoin surfaces

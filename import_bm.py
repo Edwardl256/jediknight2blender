@@ -13,9 +13,9 @@ class Bm:
 
     def import_Bm(self):
 
-        header = unpack("ccccLLLLLLLLLLLLLLLLLL", self.file[0:76])
+        header = unpack("ccccIIIIIIIIIIIIIIIIII", self.file[0:76])
 
-        size_x, size_y = unpack("LL", self.file[128:136])
+        size_x, size_y = unpack("II", self.file[128:136])
 
         PalInc = header[6]              # 0, 1 or 2 ;  2 = palette
         NumImages = header[7]           # number of images in file

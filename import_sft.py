@@ -12,7 +12,7 @@ class Sft:
 
     def import_Sft(self):
 
-        header = unpack("ccccLLLLLLLLLHH", self.file[0:44])
+        header = unpack("ccccIIIIIIIIIHH", self.file[0:44])
 
         num_tables = header[8]
 
@@ -32,7 +32,7 @@ class Sft:
         header_bm_start = header_length(0, 40)
 
         header_bm = unpack(
-            "ccccLLLLLLLLLLLLLLLLLL",
+            "ccccIIIIIIIIIIIIIIIIII",
             self.file[header_bm_start : header_bm_start + 76]
             )
 
@@ -54,7 +54,7 @@ class Sft:
         Uk9 = header_bm[21]            # = 2 in 16-bit BMs, else = 0
 
         size_x, size_y = unpack(
-            "LL",
+            "II",
             self.file[header_bm_start+128:header_bm_start+136]
             )
 

@@ -37,7 +37,7 @@ bl_info = {
     "description": "Load GOB/GOO archives from Jedi Knight: "
     "Dark Forces II / Mysteries of the Sith (.gob/.goo)",
     "blender": (2, 81, 0),
-    "version": (0, 9, 1),
+    "version": (0, 9, 0),
     "location": "File > Import > JK/MotS Archive (.gob/.goo)",
     "wiki_url":
     "https://github.com/Ecki81/jediknight2blender/blob/master/README.md",
@@ -64,14 +64,14 @@ class JKLAddon_Prefs(AddonPreferences):
     bl_idname = basename(dirname(__file__))
 
     jkdf_path: StringProperty(
-        name="DF:JK Resource dir",
-        subtype='DIR_PATH',
+        name="Where is Res2.gob",
+        subtype='FILE_PATH',
         default=""
     )
 
     mots_path: StringProperty(
-        name="MotS Resource dir",
-        subtype='DIR_PATH',
+        name="Where is JKMRes.goo",
+        subtype='FILE_PATH',
         default=""
     )
 
@@ -86,7 +86,7 @@ class JKLAddon_Prefs(AddonPreferences):
     def draw(self, context):
         layout = self.layout
         layout.label(
-            text="Please locate the \"Resource\" directories"
+            text="Please locate the resource files"
             " for DF:JK and / or MotS"
             )
         layout.prop(self, "jkdf_path")
@@ -116,22 +116,6 @@ class ImportGOBfile(Operator):
 
     def execute(self, context):
         bpy.ops.popup.gob_browser('INVOKE_DEFAULT', filepath=self.filepath)
-        return {'FINISHED'}
-
-
-class ImportException(Operator):
-    bl_idname = "report.exception"
-    bl_label = "Import Exception Output"
-    bl_options = {'INTERNAL'}
-
-    report_message: StringProperty(
-        name="report message",
-        default=""
-    )
-
-    def execute(self, context):
-        # self.report({'INFO'}, self.report_message + " not found. Check add-on preferences!")
-        self.report({'INFO'}, "Level imported")
         return {'FINISHED'}
 
 
@@ -335,22 +319,6 @@ class POPUP_OT_gob_browser(Operator):
         default=False
     )
 
-    manual_source_override: BoolProperty(
-        name="Manual Source Game Override",
-        description="If source game cannot be identified, select source game manually",
-        default=False
-    )
-
-    source_mots: EnumProperty(
-        name="Source game",
-        description="Needs to be selected for 3DO assets",
-        items=(
-            ("DFJK", "DF:JK 3DO", ""),
-            ("MOTS", "MotS 3DO", "")
-        ),
-        default="DFJK"
-    )
-
     is_mots: EnumProperty(
         name="Source game",
         description="Needs to be selected for 3DO assets",
@@ -482,9 +450,6 @@ class POPUP_OT_gob_browser(Operator):
         box_jkl.prop(self, "import_intensities")
         box_jkl.prop(self, "import_sector_info")
         box_jkl.prop(self, "import_scale")
-        box_jkl.prop(self, "manual_source_override")
-        if self.manual_source_override:
-            box_jkl.prop(self, "source_mots")
 
         box_thing.prop(self, property="is_mots")
 
@@ -500,14 +465,14 @@ class POPUP_OT_gob_browser(Operator):
 
         prefs = bpy.context.preferences.addons[__name__].preferences
 
-        jkdf_res = prefs.jkdf_path + "\Res2.gob"
-        mots_res = prefs.mots_path + "\JKMRES.GOO"
+        jkdf_res = prefs.jkdf_path
+        mots_res = prefs.mots_path
 
         restwo_file = Path(jkdf_res)
         if restwo_file.is_file():
-            print("Res2.gob FOUND!")
+            print("RES2.GOB FOUND!")
         else:
-            print("Res2.gob NOT FOUND!")
+            print("RES2.GOB NOT FOUND!")
 
         jkmres_file = Path(mots_res)
         if jkmres_file.is_file():
@@ -551,7 +516,7 @@ class POPUP_OT_gob_browser(Operator):
                 self.import_scale,
                 self.select_shader,
                 self.import_sector_info,
-                self.source_mots
+                restwo_file, jkmres_file
                 )
             level.open_from_gob(ungobed_file)
             level.import_Level()
@@ -626,7 +591,6 @@ def register():
 
     bpy.utils.register_class(JKLAddon_Prefs)
     bpy.utils.register_class(ImportGOBfile)
-    bpy.utils.register_class(ImportException)
     bpy.utils.register_class(File_Item)
     bpy.utils.register_class(Dir_Item)
     bpy.utils.register_class(POPUP_OT_gob_browser)
@@ -639,7 +603,6 @@ def unregister():
 
     bpy.utils.unregister_class(JKLAddon_Prefs)
     bpy.utils.unregister_class(ImportGOBfile)
-    bpy.utils.unregister_class(ImportException)
     bpy.utils.unregister_class(File_Item)
     bpy.utils.unregister_class(Dir_Item)
     bpy.utils.unregister_class(POPUP_OT_gob_browser)

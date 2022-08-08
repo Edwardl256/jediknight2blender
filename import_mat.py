@@ -33,7 +33,7 @@ class Mat:
 
         # read in header
 
-        t_mat_header = unpack("ccccLLLLLLLLLLLLLLLLLLLLLLLL", self.mat[0:100])
+        t_mat_header = unpack("ccccIIIIIIIIIIIIIIIIIIIIIIII", self.mat[0:100])
         ver = t_mat_header[4]
         ttype = t_mat_header[5]
         NumOfTextures = t_mat_header[6]
@@ -59,11 +59,11 @@ class Mat:
 
         if ttype == 2:
 
-            t_tex_header = unpack("LLLLLLLL", self.mat[100:132])
+            t_tex_header = unpack("IIIIIIII", self.mat[100:132])
 
             header_offset = TMAT_HEADER_LEN + TTEX_HEADER_LEN * NumOfTextures
 
-            size_x, size_y = unpack("LL", self.mat[header_offset:header_offset+8])
+            size_x, size_y = unpack("II", self.mat[header_offset:header_offset+8])
 
             image = bpy.data.images.new(self.name, width=size_x, height=size_y*NumOfTextures)
 
